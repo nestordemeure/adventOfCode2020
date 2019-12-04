@@ -1,69 +1,49 @@
+
 minCode = 272091
 maxCode = 815432
 
-function setdigit(number, digit, indexDigit)
-  number + digit * (10 ^ (6 - indexDigit))
+# do the digits grow ?
+function isGrow(d1,d2,d3,d4,d5,d6)
+  d1 >= d2 >= d3 >= d4 >= d5 >= d6
 end
 
-function countNumbers(minCode, maxCode)
-  # counts number of password that are legal
-  function count(hasAdjascent, indexDigit, previousdigit, currentNumber)
-    if indexDigit > 6 # we have finished constructing our number
-      if hasAdjascent && (currentNumber <= maxCode) && (currentNumber >= minCode)
-        # it is a legal password
-        1
-      else 
-        # it is not legal
-        0
+# are at least two neigbour digits equal ?
+function hasAdj(d1,d2,d3,d4,d5,d6)
+  (d1 == d2) || (d2 == d3) || (d3 == d4) || (d4 == d5) || (d5 == d6)
+end
+
+# are at least two neigbour digits equal 
+# (while not having a third neigbour equal to them)
+function hasStrictAdj(d1,d2,d3,d4,d5,d6)
+  ((d1 == d2) && (d2 != d3)) || 
+  ((d1 != d2) && (d2 == d3) && (d3 != d4)) || 
+  ((d2 != d3) && (d3 == d4) && (d4 != d5)) || 
+  ((d3 != d4) && (d4 == d5) && (d5 != d6)) || 
+  ((d4 != d5) && (d5 == d6))
+end
+
+# counts the number of potential codes
+function countcodes(minCode, maxCode)
+  count = 0
+  countStrict = 0
+  # TODO this loop could be ran in parallel with a proper reduction on n
+  for n in minCode:maxCode
+    d1 = n % 10
+    d2 = (n ÷ 10) % 10
+    d3 = (n ÷ 100) % 10
+    d4 = (n ÷ 1000) % 10
+    d5 = (n ÷ 10000) % 10
+    d6 = n ÷ 100000
+    if isGrow(d1,d2,d3,d4,d5,d6) && hasAdj(d1,d2,d3,d4,d5,d6)
+      count += 1
+      if hasStrictAdj(d1,d2,d3,d4,d5,d6)
+        countStrict += 1
       end
-    else
-      # we are still constructing the number
-      number = setdigit(currentNumber, previousdigit, indexDigit)
-      result = count(hasAdjascent || (indexDigit!=1), indexDigit+1, previousdigit, number)
-      for digit in (previousdigit+1):9
-        number = setdigit(currentNumber, digit, indexDigit)
-        result += count(hasAdjascent, indexDigit+1, digit, number)
-      end
-      result
     end
   end
-  firstDigit = minCode ÷ 100000
-  count(false, 1, firstDigit, 0)
+  (count, countStrict)
 end
 
-count = countNumbers(minCode, maxCode)
-println("count: ", count)
-
-function countNumbers2(minCode, maxCode)
-  # counts number of password that are legal
-  function count(hasAdjascent, adjascentLength, indexDigit, previousdigit, currentNumber)
-    if indexDigit > 6 # we have finished constructing our number
-      hasAdjascent = hasAdjascent || (adjascentLength==1)
-      if hasAdjascent && (currentNumber <= maxCode) && (currentNumber >= minCode)
-        # it is a legal password
-        1
-      else 
-        # it is not legal
-        0
-      end
-    else
-      # we are still constructing the number
-      number = setdigit(currentNumber, previousdigit, indexDigit)
-      newAdjascentLength = if (indexDigit==1) 0 else (adjascentLength+1) end
-      result = count(hasAdjascent, newAdjascentLength, indexDigit+1, previousdigit, number)
-
-      hasAdjascent = hasAdjascent || (adjascentLength==1)
-      for digit in (previousdigit+1):9
-        number = setdigit(currentNumber, digit, indexDigit)
-        result += count(hasAdjascent, 0, indexDigit+1, digit, number)
-      end
-      result
-    end
-  end
-  firstDigit = minCode ÷ 100000
-  count(false, false, 1, firstDigit, 0)
-end
-
-count2 = countNumbers2(minCode, maxCode)
-println("count2: ", count2)
+(count, countStrict) = countcodes(minCode, maxCode)
+println("count: ", count, "\tcount strict: ", countStrict)
 
