@@ -33,8 +33,8 @@ end
 function distanceto(caveMap,(h1,w1),(h2,w2))
   currentPositions = Vector()
   push!(currentPositions, (h1, w1, 0, Vector()))
-  costMap = fill(typemax(Int), (size(caveMap,1), size(caveMap,2))) 
-  doorsMap = fill(Vector(), (size(caveMap,1), size(caveMap,2))) 
+  costMap = fill(typemax(Int), (size(caveMap,1), size(caveMap,2)))
+  doorsMap = fill(Vector(), (size(caveMap,1), size(caveMap,2)))
   targetReached = false
   while (!isempty(currentPositions)) && (!targetReached)
     newPositions = Vector()
@@ -61,7 +61,7 @@ function distanceto(caveMap,(h1,w1),(h2,w2))
   end
   if targetReached
     (costMap[h2,w2], doorsMap[h2,w2])
-  else 
+  else
     nothing
   end
 end
@@ -74,7 +74,7 @@ function locateKeys(caveMap)
   for h in 1:height
     for w in 1:width
       c = caveMap[h,w]
-      if isKey(c) 
+      if isKey(c)
         keyPositions[c] = (h,w)
       end
     end
@@ -84,7 +84,7 @@ end
 
 function makeDistanceMatrix(caveMap, keyPositions)
   distanceMatrix = Dict()
-  for (key1, position1) in keyPositions 
+  for (key1, position1) in keyPositions
     for (key2, position2) in keyPositions
       if key1 == key2
         distanceMatrix[(key1,key2)] = (0,Vector())
@@ -100,14 +100,12 @@ end
 
 # produces a map and a dictionary of the key->position
 function parseMap(str)
-  lines = split(str, '\n')
+  lines = filter(l -> !isempty(l), split(str, '\n'))
   height = length(lines)
   width = length(lines[1])
   cavemap = Array{Char,2}(undef, height, width)
-  for h in 1:height
-    for w in 1:width
-      cavemap[h,w] = lines[h][w]
-    end
+  for h in 1:height, w in 1:width
+    cavemap[h,w] = lines[h][w]
   end
   cavemap
 end
@@ -127,18 +125,15 @@ end
 #---------------------------------------------------------------------------------------
 # PART1
 
-function getReachableKeys(distanceMatrix,startKey,nodesLeft)
-  nodes = Vector()
-  for key in nodesLeft
-    distanceOpt = distanceMatrix[startKey,key]
-    if !isnothing(distanceOpt)
-      (distance, doors) = distanceOpt
-      if isempty(intersect(doors,nodesLeft))
-        push!(nodes, (key,distance))
-      end
+function getReachableKeys(distanceMatrix, currentKey, keysLeft, allKeysLeft=keysLeft)
+  reachableKeys = Vector()
+  for key in keysLeft
+    (distance, doors) = distanceMatrix[currentKey,key]
+    if isempty(intersect(doors,allKeysLeft))
+      push!(reachableKeys, (key,distance))
     end
   end
-  nodes
+  reachableKeys
 end
 
 function findMin(distanceMatrix, currentKey, nodesLeft, cache)
@@ -147,7 +142,7 @@ function findMin(distanceMatrix, currentKey, nodesLeft, cache)
   elseif isempty(nodesLeft)
     cache[currentKey, nodesLeft] = 0
     return 0
-  else 
+  else
     bestScore = typemax(Int)
     for (key,distance) in getReachableKeys(distanceMatrix,currentKey,nodesLeft)
       distance = distance + findMin(distanceMatrix, key, setdiff(nodesLeft,[key]), cache)
@@ -174,7 +169,7 @@ function locateChar(caveMap, target)
   height = size(caveMap,1)
   width = size(caveMap,2)
   for h in 1:height, w in 1:width
-    if caveMap[h,w] == target 
+    if caveMap[h,w] == target
       return (h,w)
     end
   end
@@ -184,7 +179,6 @@ end
 # split a map around YOU
 function splitMap(caveMap)
   (hYou,wYou) = locateChar(caveMap, YOU)
-  # updates center of map
   caveMap = copy(caveMap)
   caveMap[hYou,wYou] = WALL
   caveMap[hYou+1,wYou] = WALL
@@ -198,92 +192,68 @@ function splitMap(caveMap)
   caveMap
 end
 
-function getKeysLeft(distanceMatrix, allKeys, target)
-  availableKeys = Set(target)
-  for key in allKeys
-    dist = distanceMatrix[(target,key)]
-    if !isnothing(dist)
-      push!(availableKeys, key)
-    end
-  end
-  setdiff(availableKeys, target)
-end
-
-function getReachableKeysSplit(distanceMatrix,currentKeys,keysLeft)
-  result = Vector()
-  currentKeys = collect(currentKeys)
-  for i in 1:length(currentKeys)
-    for (key,dist) in getReachableKeys(distanceMatrix, currentKeys[i], keysLeft[i])
-      cornerKeys = copy(currentKeys)
-      cornerKeys[i] = key
-      push!(result, (cornerKeys,dist))
+function enumerateReachableKeys(distanceMatrix, existingKeys, startingKey)
+  result = Set()
+  for key in existingKeys
+    if (key != startingKey) && !isnothing(distanceMatrix[key,startingKey])
+      union!(result, key)
     end
   end
   result
 end
 
-function setdiffsplit(keysLeft,newKeys)
-  k1 = setdiff(keysLeft[1], newKeys[1])
-  k2 = setdiff(keysLeft[2], newKeys[2])
-  k3 = setdiff(keysLeft[3], newKeys[3])
-  k4 = setdiff(keysLeft[4], newKeys[4])
-  if isempty(k1)
-    newKeys[1] = YOU1
+function makeId(currentKeys, keysLeft)
+  defaultKey = [YOU1,YOU2,YOU3,YOU4]
+  current = Set()
+  done = Set()
+  for i in 1:length(currentKeys)
+    if isempty(keysLeft[i])
+      union!(current, defaultKey[i])
+    else
+      union!(current, currentKeys[i])
+      union!(done, keysLeft[i])
+    end
   end
-  if isempty(k2)
-    newKeys[2] = YOU2
-  end
-  if isempty(k3)
-    newKeys[3] = YOU3
-  end
-  if isempty(k4)
-    newKeys[4] = YOU4
-  end
-  [k1,k2,k3,k4]
+  (current, done)
 end
 
-function findMinSplit(distanceMatrix, currentKeys, keysLeft, allKeysLeft, cache)
-  if haskey(cache, (currentKeys, allKeysLeft))
-    return cache[currentKeys, allKeysLeft]
+function findMinSplit(distanceMatrix, currentKeys, keysLeft, cache)
+  (_,allKeysLeft) = id = makeId(currentKeys, keysLeft)
+  # potential shortcuts
+  if haskey(cache, id)
+    return cache[id]
   elseif isempty(allKeysLeft)
-    cache[currentKeys, allKeysLeft] = 0
+    cache[id] = 0
     return 0
-  else 
-    bestScore = typemax(Int)
-    for (newKeys,distance) in getReachableKeysSplit(distanceMatrix,currentKeys,keysLeft)
-      newAllKeysLeft = setdiff(allKeysLeft,newKeys)
-      newKeysLeft = setdiffsplit(keysLeft,newKeys) # warning, this will change newKeys
-      distance = distance + findMinSplit(distanceMatrix, newKeys, newKeysLeft, newAllKeysLeft, cache)
-      if distance < bestScore
-        bestScore = distance
+  end
+  # enumerate all possible branch and recurse
+  minSteps = typemax(Int)
+  for i in 1:length(currentKeys)
+    newCurrentKeys = copy(currentKeys)
+    newKeysLeft = deepcopy(keysLeft)
+    for (key,dist) in getReachableKeys(distanceMatrix,currentKeys[i],keysLeft[i],allKeysLeft)
+      newCurrentKeys[i] = key
+      newKeysLeft[i] = setdiff(keysLeft[i], key)
+      steps = dist + findMinSplit(distanceMatrix, newCurrentKeys, newKeysLeft, cache)
+      if steps < minSteps
+        minSteps = steps
       end
     end
-    cache[currentKeys, allKeysLeft] = bestScore
-    bestScore
   end
+  # memorize result
+  cache[id] = minSteps
+  minSteps
 end
 
 function unlockSplitMap(caveMap)
-  println("importing problem")
   caveMap = splitMap(caveMap)
-  keyPositions = locateKeys(caveMap)
-  startingKeys = Set([YOU1,YOU2,YOU3,YOU4])
-  distanceMatrix = makeDistanceMatrix(caveMap, keyPositions)
-  
-  keysLeft1 = getKeysLeft(distanceMatrix, keys(keyPositions), YOU1)
-  keysLeft2 = getKeysLeft(distanceMatrix, keys(keyPositions), YOU2)
-  keysLeft3 = getKeysLeft(distanceMatrix, keys(keyPositions), YOU3)
-  keysLeft4 = getKeysLeft(distanceMatrix, keys(keyPositions), YOU4)
-  keysLeft = [keysLeft1, keysLeft2, keysLeft3, keysLeft4]
-  allKeysLeft = union(keysLeft1, keysLeft2, keysLeft3, keysLeft4)
-
+  keysPosition = locateKeys(caveMap)
+  distanceMatrix = makeDistanceMatrix(caveMap, keysPosition)
+  startingKeys = [YOU1,YOU2,YOU3,YOU4]
+  keysLeft = map(k -> enumerateReachableKeys(distanceMatrix, keys(keysPosition), k), startingKeys)
   cache = Dict()
-  println("solving problem")
-  findMinSplit(distanceMatrix, startingKeys, keysLeft, allKeysLeft, cache)
+  findMinSplit(distanceMatrix, startingKeys, keysLeft, cache)
 end
-
-# clean code to fix bug
-# make empty positions equivalent by teleporting to YOU once it is done to reduce branching
 
 #---------------------------------------------------------------------------------------
 # TEST1
@@ -293,9 +263,9 @@ map1 = parseMap("#########
 #b.A.@.a#
 #########")
 keys1 = locateKeys(map1)
-#dist1 = makeDistanceMatrix(map1, keys1)
-#score1 = unlockMap(dist1,keys(keys1))
-#println("cost: ", score1, " == 8")
+dist1 = makeDistanceMatrix(map1, keys1)
+score1 = unlockMap(dist1,keys(keys1))
+println("cost: ", score1, " == 8")
 
 println("test 2")
 map2 = parseMap("########################
@@ -304,9 +274,9 @@ map2 = parseMap("########################
 #d.....................#
 ########################")
 keys2 = locateKeys(map2)
-#dist2 = makeDistanceMatrix(map2, keys2)
-#score2 = unlockMap(dist2,keys(keys2))
-#println("cost: ", score2, " == 86")
+dist2 = makeDistanceMatrix(map2, keys2)
+score2 = unlockMap(dist2,keys(keys2))
+println("cost: ", score2, " == 86")
 
 println("test 3")
 map3 = parseMap("########################
@@ -315,9 +285,9 @@ map3 = parseMap("########################
 #.....@.a.B.c.d.A.e.F.g#
 ########################")
 keys3 = locateKeys(map3)
-#dist3 = makeDistanceMatrix(map3, keys3)
-#score3 = unlockMap(dist3,keys(keys3))
-#println("cost: ", score3, " == 132")
+dist3 = makeDistanceMatrix(map3, keys3)
+score3 = unlockMap(dist3,keys(keys3))
+println("cost: ", score3, " == 132")
 
 println("test 5")
 map5 = parseMap("########################
@@ -327,9 +297,9 @@ map5 = parseMap("########################
 ###g#h#i################
 ########################")
 keys5 = locateKeys(map5)
-#dist5 = makeDistanceMatrix(map5, keys5)
-#score5 = unlockMap(dist5,keys(keys5))
-#println("cost: ", score5, " == 81")
+dist5 = makeDistanceMatrix(map5, keys5)
+score5 = unlockMap(dist5,keys(keys5))
+println("cost: ", score5, " == 81")
 
 println("test 4")
 map4 = parseMap("#################
@@ -342,9 +312,9 @@ map4 = parseMap("#################
 #l.F..d...h..C.m#
 #################")
 keys4 = locateKeys(map4)
-#dist4 = makeDistanceMatrix(map4, keys4)
-#score4 = unlockMap(dist4,keys(keys4))
-#println("cost: ", score4, " == 136")
+dist4 = makeDistanceMatrix(map4, keys4)
+score4 = unlockMap(dist4,keys(keys4))
+println("cost: ", score4, " == 136")
 
 #---------------------------------------------------------------------------------------
 # TEST2
@@ -358,7 +328,7 @@ map6 = parseMap("#######
 #cB#Ab#
 #######")
 score6 = unlockSplitMap(map6)
-println("cost: ", score6, " == 8")
+println("cost: ", score6, " == 8 ")
 
 println("test 7")
 map7 = parseMap("###############
@@ -369,21 +339,21 @@ map7 = parseMap("###############
 #b.....#.....c#
 ###############")
 score7 = unlockSplitMap(map7)
-println("cost: ", score7, " == 24")
+println("cost: ", score7, " == 24 ")
 
 println("test 8")
-map7 = parseMap("#############
+map8 = parseMap("#############
 #DcBa.#.GhKl#
 #.###...#I###
 #e#d#.@.#j#k#
 ###C#...###J#
 #fEbA.#.FgHi#
 #############")
-score7 = unlockSplitMap(map7)
-println("cost: ", score7, " == 32")
+score8 = unlockSplitMap(map8)
+println("cost: ", score8, " == 32 ")
 
 println("test 9")
-map7 = parseMap("#############
+map9 = parseMap("#############
 #g#f.D#..h#l#
 #F###e#E###.#
 #dCba...BcIJ#
@@ -392,23 +362,21 @@ map7 = parseMap("#############
 #M###N#H###.#
 #o#m..#i#jk.#
 #############")
-score7 = unlockSplitMap(map7)
-println("cost: ", score7, " == 72")
+score9 = unlockSplitMap(map9)
+println("cost: ", score9, " == 72 ")
 
 #--------------------------------------------------------------------------------------------------
 # PROBLEM
 
-inputStr = read("input.txt", String)
+inputStr = read("./day18/input.txt", String)
 caveMap = parseMap(inputStr)
 
 println("problem 1")
-#keyPositions = locateKeys(caveMap)
-#distanceMatrix = makeDistanceMatrix(caveMap, keyPositions)
-#score = unlockMap(distanceMatrix,keys(keyPositions))
-#println("cost: ", score) # 3962
+keyPositions = locateKeys(caveMap)
+distanceMatrix = makeDistanceMatrix(caveMap, keyPositions)
+score = unlockMap(distanceMatrix,keys(keyPositions))
+println("cost: ", score) # 3962
 
 println("problem 2")
 score = unlockSplitMap(caveMap)
 println("cost: ", score)
-
-
