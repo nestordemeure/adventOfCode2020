@@ -379,4 +379,4 @@ println("cost: ", score) # 3962
 
 println("problem 2")
 score = unlockSplitMap(caveMap)
-println("cost: ", score)
+println("cost: ", score) # 1844
