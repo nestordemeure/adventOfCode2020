@@ -1,0 +1,30 @@
+coin
+mug
+jam
+fuel cell
+shell
+space heater
+monolith
+
+too heavy :
+shell
+space heater
+monolith
+
+too light :
+shell
+space heater
+fuel cell
+
+
+without the space heater, we are always too light so we NEED to take it
+without the shell i am too light so I NEED to take it
+without monolith i am still too heavy...
+
+solution :
+shell
+space heater
+fuel cell
+coin
+
+code: 805306888
